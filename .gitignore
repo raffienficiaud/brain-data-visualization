@@ -1,0 +1,10 @@
+*.vtk
+*.pdf
+*.pvsm
+*.pyc
+
+!thesis_complete.pdf
+
+build/
+data/
+aux/

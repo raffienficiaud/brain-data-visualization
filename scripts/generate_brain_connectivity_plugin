@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+CURDIR=$(pwd)
+BASEDIR=$(dirname "$0")
+$BASEDIR/pvpython $BASEDIR/brain_connectivity_plugin_generator_wrapper.py $CURDIR/$1
