@@ -1,10 +1,11 @@
 # -*- coding: UTF-8 -*-
-
 """
 mpi_is_sw.brain_connectivity.naive_k_means
 ******************************************
 
-This module defines various helper functions in use for the visualization.
+This module defines the k-means clustering used for creating clusters and summarized
+information for the set of edges. The implementation is pure python and may be slow,
+hence the name `naive`.
 """
 
 from __future__ import print_function
@@ -13,13 +14,19 @@ import time
 
 
 def kmeans(k, edges, max_iterations=100, save_file=-1):
-    """Returns k means of k clusters for a matrix of n-dimensional edges.
+    """Returns k-means clustering of a set of edges.
+
+    This algorithm clusters the set of ``edges`` in ``k`` clusters, using the metric
+    given by the :py:func:`.distance` function.
+
 
     :param k: an integer value denoting the number of means/clusters
     :param edges: a matrix of n-dimensional datapoints
     :param max_iterations: an integer value that defines the maximum number of
       iterations should convergence not be reached
-    :returns: a matrix of shape (k, n) containing means of the clustered dataset
+    :returns: a 2-uples where the first element is a matrix of shape ``(k, n)`` containing
+      the centroids/means of the clustered dataset, and the second element of the tuple
+      being the assignments of the ``edges`` given as argument to the indexed centroids.
 
     """
     start_time = time.time()
@@ -76,7 +83,12 @@ def init_means(k, edges):
 
 
 def distances(edges, means):
-    """Compares distances per edge per mean. For each edge returns the index of
+    """Computes the distance between two set of edges.
+
+    The distance is summing the distance between the end points of two edges,
+    irrespective of the orientation of those edges.
+
+    The fixed set is called ``means``. For each edge returns the index of
     the closest mean edge, as well as a boolean value marking whether or not
     edge_i has been closer to the flipped or original version of the mean in
     question.
@@ -182,4 +194,9 @@ def fetch_edges(mean_index, edges, means):
 
 
 def convergent(old_means, new_means):
+    """Returns ``True`` if the two sets of edges are close enough.
+
+    This would indicate that the convergence of the k-means clustering
+    has been reached.
+    """
     return np.allclose(old_means, new_means)

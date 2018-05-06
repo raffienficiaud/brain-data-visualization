@@ -21,6 +21,8 @@ def draw_edges(edges_files_path,
     """
     Function for drawing edges in a Paraview plugin pipeline.
 
+    :param edge_res: the number of segments each trajectory is divided into. The higher, the smoother the
+      trajectory, the heavier the drawing.
     :param kmeans: number of clusters. If hierarchical, this is the number of clusters by level of hierarchy.
     """
 
