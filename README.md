@@ -11,7 +11,7 @@ This repository contains a plugin that works inside Paraview for the visualizati
 
 ## Documentation
 
-The documentation can be found online on [read-the-doc](http://brain-data-vizualisation.readthedocs.io/en/latest/).
+The documentation can be found online on [read-the-doc](http://brain-data-visualization.readthedocs.io/en/latest/).
 It covers the installation procedure and the utilities provided by the repository.
 
 
