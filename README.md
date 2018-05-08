@@ -9,7 +9,10 @@ This repository contains a plugin that works inside Paraview for the visualizati
 * [**Design of a visualization scheme for functional connectivity data of Human Brain**](https://is.tuebingen.mpg.de/publications/bramlage-2017), Lennart Bramlage, Bachelor Thesis,
   Hochschule Osnabrück - University of Applied Sciences, 2017.
 
-## Installation
+## Documentation
+
+The documentation can be found online on [read-the-doc](http://brain-data-vizualisation.readthedocs.io/en/latest/).
+It covers the installation procedure and the utilities provided by the repository.
 
 
 
