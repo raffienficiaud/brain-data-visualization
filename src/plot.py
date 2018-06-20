@@ -1,31 +1,14 @@
-#!usr/bin/env python2
 # -*- coding: utf-8 -*-
-"""The all enclosing brain data viz module.
+
+"""Line and points construction functions for the brain visualization
+
+
 """
-import vtk
 import numpy as np
-
-# matrix operations
-
-
-def get_coords(vtk_object, step=1):
-    """Extracts the coordinates of a ``vtkPoints`` or ``vtkPolyData`` object.
-
-    :param vtk_object: the only requirement for the ``vtk_object`` parameter is, that it is
-    an instance of a vtk class, that implements vtkPoints
-    :type vtk_object: the ``vtk_object`` parameter is of type vtkPolydata or vtkPoints
-    :type step: the parameter ``step`` is of type integer
-    :returns: this returns a coordinate matrix where each column is a single observation
-    :rtype: numpy array
-    """
-    len_pts = vtk_object.GetNumberOfPoints()
-    coords = np.array([vtk_object.GetPoint(i)
-                       for i in range(0, len_pts, step)])
-    return coords.T
 
 
 def get_center(data_matrix):
-    """Returns the centroid of a matrix. If data_matrix is normalized this equals [0, 0, 0].
+    """Returns the centroid of a matrix.
 
     :param data_matrix: a coordinate matrix where each column is a single observation
     :type data_matrix: numpy array
@@ -82,7 +65,7 @@ def transform_to_origin(coord_mat, cov_mat):
 
 
 def spherical_projection_matrix(cov_mat):
-    """Returns a projection matrix for a nigh spherical representation.
+    """Returns a projection matrix to spherical representation.
 
     :param cov_mat: a covariance matrix of shape (3, 3)
     :returns: a projection matrix of shape (3, 3)
@@ -93,6 +76,52 @@ def spherical_projection_matrix(cov_mat):
     # multiplication is not commutative...
     m = eigen_vectors.dot(eigen_matrix).T
     return m
+
+
+class TransformSpherical(object):
+
+    def __init__(self,
+                 coordinates=None,
+                 mean=None,
+                 covariance=None):
+        """
+        :param coordinates: each column indicates a data point. This parameter should be passed
+          if the covariance or the mean is not provided. If the mean is provided and covariance
+          not, the coordinates should have already been centered
+        """
+
+        self.mean = mean
+        if self.mean is None:
+            assert(coordinates is not None)
+            self.mean = get_center(coordinates)
+            coordinates = coordinates - self.mean
+        self.covariance = covariance
+        if self.covariance is None:
+            assert(coordinates is not None)
+            self.covariance = get_cov(coordinates)
+
+        self.eigen_values, self.eigen_vectors = np.linalg.eigh(self.covariance)
+        self.eigen_matrix = np.sqrt(np.diag(max(self.eigen_values) * (self.eigen_values ** -1)))
+        self.inv_eigen_matrix = np.sqrt(np.diag(self.eigen_values / max(self.eigen_values)))
+
+    def transform_to_spherical(self, coordinates):
+        """Applies a linear transformation for making the data isotropic
+
+        This transformation is based on the previous covariance matrix. The data
+        should have been previously centered
+        """
+
+        m = self.eigen_vectors.T.dot(coordinates)
+        m = self.eigen_matrix.dot(m)
+
+        return m
+
+    def transform_to_origin(self, coordinates):
+        """Applies the inverse linear transformation as for :py:meth:`.transform_to_spherical`
+        """
+        m = self.inv_eigen_matrix.dot(coordinates)
+        m = self.eigen_vectors.dot(m)
+        return m
 
 
 def origin_projection_matrix(cov_mat, flip=True):
@@ -157,29 +186,61 @@ def cartesian_to_polar(vector, r=None):
 
 
 def find_perpendicular(v1, v2):
-    """Returns the normalized cross product of two vectors. In case vectors are colinear, one of
-    them will be offset in order to find a perpendicular vector.
+    """Returns the normalized cross product of two vectors. In case vectors are colinear, a random
+    orthogonal vector is returned instead.
 
-    :param v1, v2: two vectors, represented by numpy arrays, in cartesian coordinate space
-    :returns: a vector in cartesian coordinate space, perpendicular to both input vectors
+    :param v1, v2: two arrays of 3D vectors, represented by numpy arrays, in cartesian coordinate space.
+      Each column represents a vector.
+    :returns: an array of 3D vector in cartesian coordinate space, where each column is orthogonal
+      to the corresponding columns in ``v1`` and ``v2``. Each returned vector has a norm of ``1``.
+
+    .. note::
+
+       In case a pair of vectors is colinear, a random perpendicular vector is returned instead.
     """
-    v_p = np.cross(v1, v2)
-    if np.linalg.norm(v_p) == 0:
-        v_p = find_perpendicular(v1, np.random.random([3]))
-    return v_p / np.linalg.norm(v_p)
+    assert v1.shape[0] == 3
+    assert v2.shape[0] == 3
+    v_p = np.cross(v1.T, v2.T).T
+    norm_vp = np.linalg.norm(v_p, axis=0)
+    elements_colinear = norm_vp == 0
+    elements_colinear_subset = v_p[:, elements_colinear]
+
+    if elements_colinear_subset.shape[1] != 0:
+        random_vectors = np.random.random((3, elements_colinear_subset.shape[1]))
+        v1_subset_directions = v1[:, elements_colinear]
+        v1_subset_directions /= np.linalg.norm(v1_subset_directions, axis=0)
+        # the second term below contains the dot product of the pairs of vectors in v1 and random_vectors
+        orthogonal_directions_quantities = (v1_subset_directions * random_vectors).sum(axis=0)
+        v_p[:, elements_colinear] = random_vectors - v1_subset_directions * orthogonal_directions_quantities
+        norm_vp[elements_colinear] = np.linalg.norm(v_p[:, elements_colinear], axis=0)
+        pass
+
+    return v_p / norm_vp
 
 
 def find_angle_delta(v1, v2):
-    """Calculates the angle delta between two points, provided their origin lies at [0, 0, 0].
+    """Calculates the angle between two vectors in $\R^3$.
 
     :param v1, v2: two vectors in cartesian coordinate space
     :returns: the difference in rotation around a perpendicular axis as a floating point number
     """
-    v1, v2 = v1 / np.linalg.norm(v1), v2 / np.linalg.norm(v2)
-    return np.arccos(np.dot(v1, v2))
+
+    assert len(v1.shape) == 2
+    assert v1.shape[0] == 3
+    assert len(v2.shape) == 2
+    assert v2.shape[0] == 3
+
+    # here we may have computed the norms already, to optimize a bit
+    v1, v2 = v1 / np.linalg.norm(v1, axis=0), v2 / np.linalg.norm(v2, axis=0)
+    # return np.arccos(np.dot(v1, v2))
+    # better as it handles some weird normalization cases
+    # return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
+
+    dotproduct = (v1 * v2).sum(axis=0)
+    return np.arccos(np.clip(dotproduct, -1.0, 1.0))
 
 
-def rodr(vector, axis, theta):
+def rodrigues(vector, axis, theta):
     """Returns a vector ``vector``, rotated around an axis ``axis`` by an angle
     ``theta``. This is used to rotate an origin vector towards a destination
     vector using the methods find_perpendicular and find_angle_delta with
@@ -189,48 +250,120 @@ def rodr(vector, axis, theta):
     :param axis: a vector perpendicular to vector and a previously provided destination vector
     :param theta: an angle by which vector is to be rotated
     """
-    v_r = vector * np.cos(theta) + np.cross(axis, vector) * np.sin(theta) + \
-        np.dot(axis, np.dot(axis, vector)) * (1 - np.cos(theta))
-    return np.array(v_r)
+
+    assert len(vector.shape) == 2
+    assert vector.shape[0] == 3
+    assert len(axis.shape) == 2
+    assert axis.shape[0] == 3
+
+    # can be cached
+    all_cross_products = np.cross(axis.T, vector.T).T
+    dotproducts = (axis * vector).sum(axis=0)
+
+    #
+    costheta = np.cos(theta)
+
+    v_r = vector * costheta + \
+        all_cross_products * np.sin(theta) + \
+        axis * dotproducts * (1 - costheta)
+    return v_r
 
 
-def create_poly_coords(origin, destination, steps=100, r=1, interpolate=False):
-    """Returns a matrix of coordinates of shape (3, steps). Coordinates include
+def create_poly_coords(origin,
+                       destination,
+                       steps=100,
+                       r=1,
+                       rshift=None):
+    """Creates a polygonal approximation of a 3D curve joining two points at constant radius
+    from a center.
+
+
+    Returns a matrix of coordinates of shape (3, steps). Coordinates include
     origin [;,0] and destination [;,-1].
-    Inbetween coordinate vectors are interpolated and projected at constant
+    In between coordinate vectors are interpolated and projected at constant
     radius.
 
     :params origin, destination: vectors in cartesian coordinate space
-    :param steps: the number of inbetween points
+    :param steps: the number of intermediate points for each curve
     :param r: the constant radius at which to project the inbetween vectors
+    :param rshift: radius shift to be applied to each radius between first and last coordinates.
     """
 
     # we need to retrieve the point coordinates first, they should already be in
     # the points array of the vtk_poly_data object, later we will probably not have
     # vectors as input arguments but indices
     # we don't need to normalize if we can set the radius manually!
-    coords = np.array([origin, destination])
+
+    # coords = np.array([origin, destination])
+
+    assert len(origin.shape) == 2
+    assert origin.shape[0] == 3
+    assert len(destination.shape) == 2
+    assert destination.shape[0] == 3
 
     k = find_perpendicular(origin, destination)
-    org_dist = np.sqrt((origin ** 2).sum(axis=0))
-    dst_dist = np.sqrt((destination ** 2).sum(axis=0))
+
+    org_dist = np.linalg.norm(origin, axis=0)
+    dst_dist = np.linalg.norm(destination, axis=0)
+
     delta = find_angle_delta(origin, destination)
 
-    lerped_coordinates = np.array([
-        rodr(polar_to_cartesian(cartesian_to_polar(origin, r=radius(org_dist, dst_dist, i, steps, r))), k, (float(i) / (steps - 1)) * delta) for i in xrange(steps)])
-    return np.insert(coords, 1, lerped_coordinates, axis=0).T
+    if rshift:
+        out = np.ndarray((origin.shape[0], origin.shape[1], steps + 2))
+        out[:, :, 0] = origin
+        out[:, :, steps + 1] = destination
+    else:
+        out = np.ndarray((origin.shape[0], origin.shape[1], steps))
+
+    # we have to normalize origin otherwise we multiply by a radius twice (in the loop)
+    normalized_origin = origin / org_dist
+
+    for current_step in xrange(steps):
+        radius_step = radius(org_dist, dst_dist, current_step, steps, r)
+        if rshift:
+            radius_step += rshift
+        current_rotated = radius_step * rodrigues(vector=normalized_origin,
+                                                  axis=k,
+                                                  theta=(delta * float(current_step) / (steps - 1)))
+        if rshift:
+            out[:, :, current_step + 1] = current_rotated
+        else:
+            out[:, :, current_step] = current_rotated
+
+    return out
 
 
-def radius(org_dist, dst_dist, i, steps, r=100):
+def radius(org_dist, dst_dist, current_step, nb_steps, r=100):
     """Interpolates over a sine function, atop of the interpolation between the
     radii of two projected endpoints.
     """
 
-    r = (org_dist + ((dst_dist - org_dist) * (i / (steps - 1.0)))
-         ) + np.sin(i * (np.pi / (steps - 1))) * r
+    alpha = current_step / (nb_steps - 1.0)
+    r = (1 - alpha) * org_dist + alpha * dst_dist + np.sin(np.pi * alpha) * r
+
+    # combining the sine with a sigmoide might also give interesting results
+    # points(xx, ((1+exp(-beta))/(1+exp(-beta*sin(xx))) - 0.5)*2, col='purple')
+    # or even better (which can be further simplified)
+    # points(xx, (1/(1+exp(-beta*sin(xx))) - 0.5)*2*(1+exp(-beta))/(1-exp(-beta)), col='red')
     return r
 
 # vtk operations
+
+
+def get_coords(vtk_object, step=1):
+    """Extracts the coordinates of a ``vtkPoints`` or ``vtkPolyData`` object.
+
+    :param vtk_object: the only requirement for the ``vtk_object`` parameter is, that it is
+    an instance of a vtk class, that implements vtkPoints
+    :type vtk_object: the ``vtk_object`` parameter is of type vtkPolydata or vtkPoints
+    :type step: the parameter ``step`` is of type integer
+    :returns: this returns a coordinate matrix where each column is a single observation
+    :rtype: numpy array
+    """
+    len_pts = vtk_object.GetNumberOfPoints()
+    coords = np.array([vtk_object.GetPoint(i)
+                       for i in range(0, len_pts, step)])
+    return coords.T
 
 
 def create_points(data_matrix):
@@ -239,25 +372,39 @@ def create_points(data_matrix):
 
     :param data_matrix: a coordinate matrix where each column is a single observation
     :type data_matrix: numpy array
-    :returns: this returns a vtkPoints object, that contains all coordinates extracted
-    from the input matrix
+    :returns: vtkPoints object containing all coordinates extracted from the input matrix
     :rtype: vtkPoints
     """
-    data_matrix = data_matrix.T
+    import vtk
+    from vtk.util import numpy_support
+
+    if 0:
+        data_matrix = data_matrix.T
+        pts = vtk.vtkPoints()
+        for i, point in enumerate(data_matrix):
+            pts.InsertPoint(i, point[0], point[1], point[2])
+        return pts
+
+    assert data_matrix.shape[0] == 3, "The number of components/lines of the data matrix should be equal to 3 (3d coordinates)"
+
+    vtkfloatarray = numpy_support.numpy_to_vtk(num_array=data_matrix.astype(np.float).ravel(order='F'),  # warning on the order
+                                               deep=True,
+                                               array_type=vtk.VTK_FLOAT)
+
     pts = vtk.vtkPoints()
-    for i, point in enumerate(data_matrix):
-        pts.InsertPoint(i, point[0], point[1], point[2])
+    vtkfloatarray.SetNumberOfComponents(3)
+    pts.SetData(vtkfloatarray)
     return pts
 
 
 def draw_line(vtk_poly_data, pt_0, pt_1):
     """This draws a line in the vtk pipeline.
 
-    :param vtk_poly_data: a vtk object with a points and a cells attribute
-    :type vtk_poly_data: vtkPolyData
+    :param vtkPolyData vtk_poly_data: a vtk object with a points and a cells attribute
     :params pt_0, pt_1: two vectors in three-dimensional space
     :type pt_0, pt_1: list
     """
+    import vtk
     points = vtk_poly_data.GetPoints()
     lines = vtk_poly_data.GetLines()
     line = vtk.vtkLine()
@@ -279,8 +426,16 @@ def draw_poly_line(vtk_poly_data, coords):
 
     :param vtk_poly_data: a vtk object with a points and a cells attribute
     :type vtk_poly_data: vtkPolyData
+
+    .. note::
+
+        Requires VTK
     """
+    import vtk
+
     points = vtk_poly_data.GetPoints()
+    if points is None:
+        points = vtk.vtkPoints()
     lines = vtk_poly_data.GetLines()
 
     points_offset = vtk_poly_data.GetNumberOfPoints()
@@ -300,7 +455,7 @@ def draw_poly_line(vtk_poly_data, coords):
         p_line.GetPointIds().SetId(i, points_offset + i)
 
     lines.InsertNextCell(p_line)
-    vtk_poly_data.SetPoints(points)
+    vtk_poly_data.SetPoints(points)  # needed in the case created locally
     vtk_poly_data.SetLines(lines)
 
 
@@ -312,30 +467,12 @@ def get_interpolation_array(n):
     """
 
     _range = np.arange(0., n)
-    _function = lambda x: 1 - ((x - ((len(x) - 1) / 2.)) ** 4 / len(x)
-                               ** (np.log((-((len(x) - 1) / 2.)) ** 4) / np.log(len(x))))
+
+    def _function(x):
+        return 1 - ((x - ((len(x) - 1) / 2.)) ** 4 / len(x) ** (np.log((-((len(x) - 1) / 2.)) ** 4) / np.log(len(x))))
     # _function = lambda x: np.sin(x*(np.pi/len(x)))
 
     interpolation_array = _function(_range)
     interpolation_array *= 0.95
 
     return interpolation_array
-
-
-def interpolate_array(a1, a2, interpolation_array):
-    """Interpolates two arrays value by value.
-
-    :params a1, a2: two arrays of equal lengths, containing float values.
-    :returns: a single array of interpolated values.
-    """
-    if len(a1) != len(a2):
-        raise ValueError('Array lengths do not match!', len(a1), '!=', len(a2))
-    # np.array([(a2[i] - a1[i]) * interpolation_array[i] + a1[i] for i in xrange(len(a1))])
-    final_array = (a2 - a1).T * interpolation_array + a1.T
-    return final_array.T
-
-
-def interpolate_arrays(a1, a2, interpolation_array, mask):
-    # a1 shape should be (n, pts, dimension)
-    # interpolation_array shape should be (pts, 1), could use [:, np.newaxis]
-    a1[mask] += (a2 - a1[mask]) * interpolation_array[:, np.newaxis]

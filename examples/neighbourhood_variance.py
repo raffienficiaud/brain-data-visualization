@@ -20,7 +20,9 @@ pts = pl.center_matrix(pts)
 # Calculation of kmeans and polyline coordinates
 #########################################
 # store covariance of coordinates
-cov = np.array([[  976.11039718,   -84.83226021,    -3.22440051],[  -84.83226021,  1404.36336796,    38.85441103],[   -3.22440051,    38.85441103,   294.69293392]])
+cov = np.array([[  976.11039718,   -84.83226021,    -3.22440051],
+                [  -84.83226021,  1404.36336796,    38.85441103],
+                [   -3.22440051,    38.85441103,   294.69293392]])
 # get the backward projection matrix
 b_p = pl.origin_projection_matrix(cov)
 

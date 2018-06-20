@@ -10,7 +10,7 @@ file_to_process = inspect.getsourcefile(plugin_main)
 
 print
 print '#' * 20
-print "Generating the Brain fMRI plugin for installation to file", sys.argv[1]
+print "Generating the Brain fMRI plugin/Paraview filter for installation to file", sys.argv[1]
 print "Once generated, add this XML file in the plugin manager. Remove any prior existing plugin"
 print '#' * 20
 print

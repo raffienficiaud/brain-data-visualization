@@ -56,6 +56,7 @@ and then navigate to the path where you cloned the package, and type
 .. code::
 
   cd <brain-connectivity-visualization-path>
+  pip install -r requirements.txt
   pip install .
 
 After the installation, you should see the package with ``pip list``:
@@ -165,9 +166,64 @@ python virtual environment, and this will be the preferred method on this platfo
    mentioned earlier, and it would be safer to make the OSX system Python the default in
    that case.
 
-The installation of Paraview is often located in ``/Application``` folder, and it is not
+The installation of Paraview is often located in ``/Application`` folder, and it is not
 possible to write into the Paraview application folder. Therefor the installation
 on OSX requires a virtual environment or a global installation.
+
+Paraview comes with its own version of Numpy, that might not be ABI compatible with newer
+versions of the library. Numpy is extensively used in the visualization plugin, which indirectly
+means that the API being used in the plugin should be compatible with the version of Numpy
+installed along Paraview.
+
+Some parts of the visualization plugin require VTK. It is unfortunately quite difficult to use
+VTK installation provided by Paraview. In particular it is not straightforward to use
+the libraries provided by Paraview with your own Python setup. One possibility would be
+
+1. create your virtual environment
+2. compile and install VTK with the python bindings
+3. load your python shell within your environment
+4. point to the freshly installed VTK
+
+For compiling VTK:
+
+.. code::
+
+    cd <vtk-source-folder>
+    mkdir build
+    cd build
+    cmake -DCMAKE_INSTALL_PREFIX=~/usr/local -DVTK_WRAP_PYTHON=ON ..
+    make -j 4
+    make install
+
+For using VTK if it is not installed in a system folder (recommanded), if for instance
+VTK is installed in `~/usr/local`
+
+.. code::
+
+    virtualenv venv_paraview
+    . venv_paraview/bin/activate
+    pip install -r requirements.txt
+    pip install .
+    pip install ipython
+
+    # adding VTK to the list of paths of the virtualenv
+    USER_SITE=$(python -c "import os; print os.environ['VIRTUAL_ENV']")
+    echo "/Users/<myself>/usr/local/lib/python2.7/site-packages/" >> $USER_SITE/lib/python2.7/site-packages/vtk.pth
+
+    export DYLD_LIBRARY_PATH=/Users/<myself>/usr/local/lib/:$DYLD_LIBRARY_PATH
+    python -c "import vtk; print 'success!'"
+    ipython
+    > import vtk
+
+For being able to run the scripts that require VTK, after installation do:
+
+.. code::
+
+    export DYLD_LIBRARY_PATH=/Users/<myself>/usr/local/lib/:$DYLD_LIBRARY_PATH
+    export PYTHONPATH=/Users/<myself>/usr/local/lib/python2.7/site-packages/:$PYTHONPATH
+
+    generate_brain_connectivity_volume_file id1090_timestep.nii nii-volume-2
+
 
 Linux
 ^^^^^

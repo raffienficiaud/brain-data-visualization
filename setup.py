@@ -26,6 +26,7 @@ def _get_version():
 # this package will go to the following namespace
 namespace_package = 'mpi_is_sw'
 
+# not installing the test files
 packages = [namespace_package,
             '%s.brain_connectivity' % namespace_package,
             '%s.brain_connectivity.utils' % namespace_package,
@@ -40,7 +41,13 @@ additional_setup_args = {}
 
 if has_setup_tools:
     additional_setup_args["entry_points"] = {
-        'console_scripts': ['generate_brain_connectivity_plugin=%s.brain_connectivity.utils.generate_plugin_xml:main_virtualenv' % namespace_package],
+        'console_scripts': ['generate_brain_connectivity_plugin=%s.brain_connectivity.utils.generate_plugin_xml:main_virtualenv' % namespace_package,
+                            'generate_brain_connectivity_edge_file=%s.brain_connectivity.utils.generate_processing:main_generate_edge_file' % namespace_package,
+                            'generate_brain_connectivity_edge_volume_file=%s.brain_connectivity.utils.generate_processing:main_generate_edge_volume_file' % namespace_package,
+                            'generate_brain_connectivity_volume_file=%s.brain_connectivity.utils.generate_processing:main_generate_volume_file' % namespace_package,
+                            'generate_brain_connectivity_cluster_file=%s.brain_connectivity.utils.generate_processing:main_generate_cluster_file' % namespace_package,
+                            ],
+
     }
     additional_setup_args["install_requires"] = ['numpy']
     additional_setup_args["zip_safe"] = False
