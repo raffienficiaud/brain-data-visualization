@@ -1,3 +1,11 @@
+"""
+utils.generate_plugin_xml
+-------------------------
+
+Provides tools for generating the XML Paraview plugins.
+
+"""
+
 # See blog for details: https://blog.kitware.com/easy-customization-of-the-paraview-python-programmable-filter-property-panel/
 
 import os
@@ -262,13 +270,14 @@ def generatePythonFilter(info, function_name=None):
     proxyName = info['Name']
     proxyLabel = info['Label']
     shortHelp = escapeForXmlAttribute(info['Help'])
-    longHelp = escapeForXmlAttribute(info['Help'])
+    longHelp = escapeForXmlAttribute(info['LongHelp'] if 'LongHelp' in info else info['Help'])
     extraXml = info.get('ExtraXml', '')
 
     proxyGroup = getProxyGroup(info)
     inputPropertyXml = getInputPropertyXml(info)
     outputDataSetType = getOutputDataSetTypeXml(info)
-    scriptProperties = getScriptPropertiesXml(info, function_name=function_name)
+    scriptProperties = getScriptPropertiesXml(info,
+                                              function_name=function_name)
     filterProperties = getFilterPropertiesXml(info)
 
     outputXml = '''\
@@ -418,7 +427,6 @@ def main():
 
 
 if __name__ == '__main__':
-
 
     if len(sys.argv) != 3:
         print 'Usage: %s <input_file> <xml output filename>' % sys.argv[0]

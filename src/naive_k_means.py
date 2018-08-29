@@ -3,8 +3,8 @@
 mpi_is_sw.brain_connectivity.naive_k_means
 ******************************************
 
-This module defines the k-means clustering used for creating clusters and summarized
-information for the set of edges. The implementation is pure python and may be slow,
+This module defines the k-means clustering used for creating clusters of edges and summarized
+information for the set of edges. The implementation is pure python and is slow,
 hence the name `naive`.
 """
 
@@ -13,7 +13,11 @@ import numpy as np
 import time
 
 
-def kmeans(k, edges, max_iterations=100, save_file=-1):
+def kmeans(k,
+           edges,
+           max_iterations=100,
+           verbose=False,
+           callback=None):
     """Returns k-means clustering of a set of edges.
 
     This algorithm clusters the set of ``edges`` in ``k`` clusters, using the metric
@@ -24,62 +28,71 @@ def kmeans(k, edges, max_iterations=100, save_file=-1):
     :param edges: a matrix of n-dimensional datapoints
     :param max_iterations: an integer value that defines the maximum number of
       iterations should convergence not be reached
+    :param callback: a callable object taking two arguments: the centroids and the labels.
+      The callback is called every 100 iterations and may be used for checkpointing.
     :returns: a 2-uples where the first element is a matrix of shape ``(k, n)`` containing
       the centroids/means of the clustered dataset, and the second element of the tuple
-      being the assignments of the ``edges`` given as argument to the indexed centroids.
+      being the assignments/labels of the ``edges`` given as argument to the indexed centroids.
 
     """
     start_time = time.time()
 
+    # handles the case of a too big k
+    k = min(k, edges.shape[0])
+
     # Initialize means from the original data points.
-    means = init_means(k, edges)
+    current_centroids = init_centroids(k, edges)
 
     # Actual algorithm step.
     for i in xrange(max_iterations):
-        print("%s steps" % i)
-        # Compute distances between all means and all edges, as well the
-        # distances between flipped means and edges.
-        # distance_matrix = distances(edges, means)
+        if verbose:
+            print("%s steps" % i)
+        # Compute distances between all current_centroids and all edges, as well the
+        # distances between flipped current_centroids and edges.
+        # distance_matrix = distances(edges, current_centroids)
 
         # Find closest points for each mean generate a boolean flip_map from
         # the computed distances.
-        labels, flip_map = distances(edges, means)
+        labels, flip_map = distances(edges, current_centroids)
 
         # Reassamble the edges array with flipped and original versions of all
         # edges, following the flip_map.
         edges = reorder_edges(edges, flip_map)
 
         # Update mean positions with the mean values of the assigned points.
-        updated_centroids = update_centroids(edges, labels, means, flip_map)
+        updated_centroids = update_centroids(edges, labels, current_centroids, flip_map)
 
-        # Check for convergence between updated and previous means.
-        if convergent(means, updated_centroids):
-            print("Convergence reached in %s seconds." % (time.time() - start_time))
-            if save_file is not -1:
-                np.save(save_file, (means, labels))
-            return means, labels
+        # Check for convergence between updated and previous current_centroids.
+        if convergent(current_centroids, updated_centroids):
+            if verbose:
+                print("Convergence reached in %s seconds." % (time.time() - start_time))
+            return current_centroids, labels
 
         if i % 100 == 0:
-            if save_file is not -1:
-                np.save(save_file, (means, labels))
-        means = updated_centroids
+            if callback is not None:
+                callback(current_centroids, labels)
 
-    print("Convergence not reachead after %s seconds." % (time.time() - start_time))
-    if save_file is not -1:
-        np.save(save_file, (means, labels))
-    return means, labels
+        current_centroids = updated_centroids
+
+    if verbose:
+        print("Convergence not reached after %s seconds." % (time.time() - start_time))
+    return current_centroids, labels
 
 
-def init_means(k, edges):
-    """Returns k means, sampled at random data points out of a given set of
+def init_centroids(k, edges):
+    """Returns k centroids by randomly sampling data points out of a given set of
     edges, as a matrix of shape (k, n).
 
-    :param k: an integer value denoting the number of means/clusters
+    :param k: an integer value denoting the number of means/clusters.
     :param edges: a matrix of edges to sample the initial means from
     :returns: a matrix of k data points from the original edges matrix
+    :raises: ``AssertError`` if ``k > edges.shape[0]``
     """
-    means = edges[(np.random.rand(k,) * len(edges)).astype(np.int32)]
-    return means
+    # may return several time the same element
+    # centroids = edges[(np.random.rand(k,) * len(edges)).astype(np.int32)]
+    assert 0 <= k <= edges.shape[0]
+    centroids = edges[np.random.choice(edges.shape[0], k, replace=False), :]
+    return centroids
 
 
 def distances(edges, means):
@@ -107,6 +120,18 @@ def distances(edges, means):
         flip_map[i] = original_distances[indices[i]
                                          ] > flipped_distances[indices[i]]
 
+    return indices, flip_map
+
+    # tentative acceleration using scipy distance function
+    from scipy.spatial import distance
+    straight_distances = distance.cdist(edges, means, 'euclidean')
+    flipped_distances = distance.cdist(edges, flipped_means, 'euclidean')
+
+    all_distances = np.hstack((straight_distances, flipped_distances))
+    idx = all_distances.argmin(axis=1)
+
+    indices = idx % means.shape[0]
+    flip_map = idx >= means.shape[0]
     return indices, flip_map
 
 

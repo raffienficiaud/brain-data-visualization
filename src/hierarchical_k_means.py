@@ -68,7 +68,7 @@ def assemble_labels(kmeans_history, level=-1):
     edges - moving down the hierarchy.
     """
     labels = np.array(range(kmeans_history[1][0].shape[0]))
-    for i, m in enumerate(kmeans_history[0][level]):
+    for i, _ in enumerate(kmeans_history[0][level]):
         indices = fetch_labels(i, kmeans_history, level)
         if indices.shape[0] > 0:
             labels[indices] = i

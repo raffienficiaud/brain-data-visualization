@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 
-"""Connectivity visualisation filter
+"""Connectivity visualization filter
 
 Paraview plugin wrapper.
 """
 
-Name = 'BrainConnectivityVis'
+Name = 'mpi-is-brain-connectivity'
 Label = 'mpi-is-brain-connectivity'
 Help = 'Brain fMRI connectivity visualization plugin'
+LongHelp = 'Paraview filter for visualizing brain connectivity data.'
 
 NumberOfInputs = 1
 InputDataType = 'vtkPolyData'
@@ -15,13 +16,13 @@ OutputDataType = 'vtkPolyData'
 ExtraXml = ''
 
 Properties = dict(
-    edges_path='',
-    means_path='',
+    edges_file='',
+    clusters_file='',
     edge_selection=[120000, 120200],
-    edge_res=16,
-    k_means=7,
+    resolution=16,
+    nb_clusters=7,
     show_edges=True,
-    mean_index=-1,
+    cluster_index=-1,
     hierarchy_index=-1
 )
 
@@ -34,14 +35,15 @@ def RequestData():
 
     draw_edges(poly_data_input=poly_data_input,
                poly_data_output=poly_data_output,
-               edges_files_path=edges_path,
+               edges_files_path=edges_file,
                edge_selection=edge_selection,
-               edge_res=edge_res,
-               k_means=k_means,
-               means_path=means_path,
+               resolution=resolution,
+               nb_clusters=nb_clusters,
+               centroids_file_path=clusters_file,
                hierarchy_index=hierarchy_index if hierarchy_index >= 0 else None,
                show_edges=show_edges,
-               mean_index=mean_index if mean_index >= 0 else None)
+               cluster_index=cluster_index if cluster_index >= 0 else None,
+               center_edges=True)
 
 
 def RequestDataVirtualEnv():
@@ -58,11 +60,12 @@ def RequestDataVirtualEnv():
 
     draw_edges(poly_data_input=poly_data_input,
                poly_data_output=poly_data_output,
-               edges_files_path=edges_path,
+               edges_files_path=edges_file,
                edge_selection=edge_selection,
-               edge_res=edge_res,
-               k_means=k_means,
-               means_path=means_path,
+               resolution=resolution,
+               nb_clusters=nb_clusters,
+               centroids_file_path=clusters_file,
                hierarchy_index=hierarchy_index if hierarchy_index >= 0 else None,
                show_edges=show_edges,
-               mean_index=mean_index if mean_index >= 0 else None)
+               cluster_index=cluster_index if cluster_index >= 0 else None,
+               center_edges=True)
